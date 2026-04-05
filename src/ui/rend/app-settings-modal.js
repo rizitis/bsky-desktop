@@ -1,14 +1,46 @@
-// App Settings Modal - Builds and manages the settings UI
+// App Settings Modal - Builds and manages the settings UI with Bluesky Extension settings
 async function showAppSettingsModal() {
     // Check if modal already exists
     if (document.getElementById('bsky-app-settings-modal')) {
         return;
     }
 
-    // Load current settings
+    // Load current settings (both app and extension)
     let settings = {};
+    let extSettings = {
+        emoji: {
+            enabled: true,
+            size: '1.2em',
+            verticalAlign: '-20%',
+            debugMode: false
+        }
+    };
+    
     try {
         settings = await window.ipc.invoke('app:getSettings');
+        
+        // Load extension settings from saved settings first (priority)
+        if (settings?.extension) {
+            console.log('[Settings Modal] Loaded saved extension settings:', settings.extension);
+            extSettings.emoji = {
+                enabled: settings.extension.enabled !== false, // Default to true if not set
+                size: settings.extension.emojiSize || '1.2em',
+                verticalAlign: settings.extension.emojiVerticalAlign || '-20%',
+                debugMode: settings.extension.debugMode || false
+            };
+        }
+        // Otherwise get from currently running extension
+        else if (window.BskyExt) {
+            console.log('[Settings Modal] Loading from running extension');
+            extSettings.emoji = {
+                enabled: window.BskyExt.config.enabled !== false,
+                size: window.BskyExt.config.emojiSize || '1.2em',
+                verticalAlign: window.BskyExt.config.emojiVerticalAlign || '-20%',
+                debugMode: window.BskyExt.config.debugMode || false
+            };
+        }
+        
+        console.log('[Settings Modal] Final extension settings:', extSettings);
     } catch (error) {
         console.error('Failed to load settings:', error);
         iziToast.error({
@@ -102,11 +134,90 @@ async function showAppSettingsModal() {
     header.appendChild(headerTitle);
     header.appendChild(closeButton);
 
+    // Parse size and align values properly
+    const emojiSizeNum = parseFloat(extSettings.emoji.size);
+    const emojiAlignNum = parseInt(extSettings.emoji.verticalAlign);
+    
+    console.log('[Settings Modal] Parsed values - Size:', emojiSizeNum, 'Align:', emojiAlignNum);
+
     // Modal content
     const content = document.createElement('div');
     content.style.cssText = `padding: 24px;`;
     content.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Bluesky Extension Section -->
+            <div>
+                <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: rgb(255, 255, 255);">
+                    <i class="fa-solid fa-face-smile" style="margin-right: 8px; color: rgb(16, 131, 254);"></i>Bluesky Extension
+                </h3>
+                
+                <!-- Enable Extension -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0;">
+                    <div>
+                        <div style="font-size: 14px; font-weight: 500; color: rgb(255, 255, 255);">Enable Emoji Enhancement</div>
+                        <div style="font-size: 12px; color: rgb(159, 167, 179); margin-top: 2px;">Replace Unicode emojis with high-quality Twemoji images</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="setting-ext-enabled" ${extSettings.emoji.enabled ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Emoji Size -->
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 14px; font-weight: 500; color: rgb(255, 255, 255); margin-bottom: 8px;">
+                        Emoji Size
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <input type="range" id="setting-emoji-size" min="0.8" max="2.0" step="0.1" value="${emojiSizeNum}" 
+                            style="flex: 1; height: 6px; background: rgb(47, 51, 56); border-radius: 3px; outline: none; -webkit-appearance: none;">
+                        <span id="emoji-size-value" style="font-size: 14px; color: rgb(255, 255, 255); min-width: 50px; text-align: right;">
+                            ${emojiSizeNum.toFixed(1)}em
+                        </span>
+                    </div>
+                    <div style="font-size: 12px; color: rgb(159, 167, 179); margin-top: 6px;">
+                        Adjust the size of emoji images (0.8em - 2.0em)
+                    </div>
+                </div>
+
+                <!-- Emoji Vertical Alignment -->
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 14px; font-weight: 500; color: rgb(255, 255, 255); margin-bottom: 8px;">
+                        Vertical Alignment
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <input type="range" id="setting-emoji-align" min="-30" max="0" step="1" value="${emojiAlignNum}" 
+                            style="flex: 1; height: 6px; background: rgb(47, 51, 56); border-radius: 3px; outline: none; -webkit-appearance: none;">
+                        <span id="emoji-align-value" style="font-size: 14px; color: rgb(255, 255, 255); min-width: 50px; text-align: right;">
+                            ${emojiAlignNum}%
+                        </span>
+                    </div>
+                    <div style="font-size: 12px; color: rgb(159, 167, 179); margin-top: 6px;">
+                        Fine-tune emoji alignment with text (-30% to 0%)
+                    </div>
+                </div>
+
+                <!-- Debug Mode -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0;">
+                    <div>
+                        <div style="font-size: 14px; font-weight: 500; color: rgb(255, 255, 255);">Debug Mode</div>
+                        <div style="font-size: 12px; color: rgb(159, 167, 179); margin-top: 2px;">Show detailed console logs for troubleshooting</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="setting-ext-debug" ${extSettings.emoji.debugMode ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Extension Status -->
+                <div id="ext-status" style="margin-top: 12px; padding: 12px; background-color: rgba(16, 131, 254, 0.1); border-radius: 8px; font-size: 12px; color: rgb(159, 167, 179);">
+                    <i class="fa-solid fa-circle-info" style="margin-right: 6px; color: rgb(16, 131, 254);"></i>
+                    <span id="ext-status-text">Extension ${window.BskyExt ? 'loaded and ' + (window.BskyExt.state.initialized ? 'active' : 'disabled') : 'not loaded'}</span>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid rgb(47, 51, 56);"></div>
+
             <!-- Updates Section -->
             <div>
                 <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: rgb(255, 255, 255);">
@@ -222,7 +333,7 @@ async function showAppSettingsModal() {
         </div>
     `;
 
-    // Add toggle switch styles
+    // Add toggle switch styles and range slider styles
     const style = document.createElement('style');
     style.textContent = `
         @keyframes fadeIn {
@@ -278,6 +389,39 @@ async function showAppSettingsModal() {
         #save-settings:hover {
             background-color: rgb(14, 116, 225);
         }
+        
+        /* Range slider styling */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: rgb(16, 131, 254);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: rgb(16, 131, 254);
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: rgb(47, 51, 56);
+            border-radius: 3px;
+        }
+        input[type="range"]::-moz-range-track {
+            height: 6px;
+            background: rgb(47, 51, 56);
+            border-radius: 3px;
+        }
     `;
     document.head.appendChild(style);
 
@@ -285,11 +429,37 @@ async function showAppSettingsModal() {
     modal.appendChild(content);
     overlay.appendChild(modal);
 
+    // Real-time updates for range sliders
+    const emojiSizeSlider = content.querySelector('#setting-emoji-size');
+    const emojiSizeValue = content.querySelector('#emoji-size-value');
+    const emojiAlignSlider = content.querySelector('#setting-emoji-align');
+    const emojiAlignValue = content.querySelector('#emoji-align-value');
+
+    emojiSizeSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value).toFixed(1);
+        emojiSizeValue.textContent = `${value}em`;
+        
+        // Live preview if extension is loaded
+        if (window.BskyExt && window.BskyExt.state.initialized) {
+            window.BskyExt.emoji.updateCSS({ emojiSize: `${value}em` });
+        }
+    });
+
+    emojiAlignSlider.addEventListener('input', (e) => {
+        const value = parseInt(e.target.value);
+        emojiAlignValue.textContent = `${value}%`;
+        
+        // Live preview if extension is loaded
+        if (window.BskyExt && window.BskyExt.state.initialized) {
+            window.BskyExt.emoji.updateCSS({ emojiVerticalAlign: `${value}%` });
+        }
+    });
+
     // Event handlers
     content.querySelector('#save-settings').addEventListener('click', async () => {
         const newSettings = {
             updates: {
-                channel: content.querySelector('#setting-update-channel').value,
+                channel: content.querySelector('#setting-update-channel')?.value || 'stable',
                 autoCheck: content.querySelector('#setting-auto-check').checked,
                 autoDownload: content.querySelector('#setting-auto-download').checked,
                 autoInstallOnQuit: content.querySelector('#setting-auto-install').checked
@@ -299,12 +469,45 @@ async function showAppSettingsModal() {
             },
             badge: {
                 useSystemAccent: content.querySelector('#setting-badge-accent').checked
+            },
+            extension: {
+                enabled: content.querySelector('#setting-ext-enabled').checked,
+                emojiSize: `${parseFloat(content.querySelector('#setting-emoji-size').value).toFixed(1)}em`,
+                emojiVerticalAlign: `${parseInt(content.querySelector('#setting-emoji-align').value)}%`,
+                debugMode: content.querySelector('#setting-ext-debug').checked
             }
         };
+
+        console.log('[Settings Modal] Saving settings:', newSettings);
+
+        // Apply extension settings immediately if BskyExt is loaded
+        if (window.BskyExt) {
+            try {
+                if (newSettings.extension.enabled) {
+                    if (!window.BskyExt.state.initialized) {
+                        window.BskyExt.config.enabled = true;
+                        await window.BskyExt.init();
+                    }
+                    await window.BskyExt.configure({
+                        enabled: true,
+                        emojiSize: newSettings.extension.emojiSize,
+                        emojiVerticalAlign: newSettings.extension.emojiVerticalAlign,
+                        debugMode: newSettings.extension.debugMode
+                    }, false); // Don't save here, we'll save below
+                } else {
+                    window.BskyExt.config.enabled = false;
+                    window.BskyExt.destroy();
+                }
+            } catch (error) {
+                console.error('Failed to apply extension settings:', error);
+            }
+        }
 
         try {
             const result = await window.ipc.invoke('app:saveSettings', newSettings);
             if (result.success) {
+                console.log('[Settings Modal] Settings saved successfully');
+                
                 const message = result.requiresRestart 
                     ? 'Settings saved! Please restart the app to apply all changes.'
                     : 'Settings saved successfully!';

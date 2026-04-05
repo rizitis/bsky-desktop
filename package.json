@@ -1,6 +1,6 @@
 {
     "name": "bsky-desktop",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "A desktop app of bsky.app",
     "main": "src/app/main.js",
     "scripts": {
@@ -17,8 +17,8 @@
     },
     "license": "AGPL-3.0-only",
     "devDependencies": {
-        "electron": "^38.0.0",
-        "electron-builder": "^24.13.3"
+        "electron": "^41.1.1",
+        "electron-builder": "^26.8.1"
     },
     "dependencies": {
         "@electron/asar": "^3.4.1",
